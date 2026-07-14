@@ -1,0 +1,30 @@
+name: Auto Sales Logger
+
+on:
+  schedule:
+    # ตั้งเวลารันอัตโนมัติทุกวันตอน 18:00 น. (เวลาไทย คือ 11:00 UTC)
+    - cron: '0 11 * * *'
+  workflow_dispatch: # อนุญาตให้เรากดปุ่มรันเองได้จากหน้าเว็บ
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install libraries
+        run: pip install gspread google-auth requests
+        
+      - name: Run python script
+        env:
+          GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        # เปลี่ยนเมนูทดสอบเพื่อให้รู้ว่ามาจากบอทอัตโนมัติ
+        run: python sales_logger.py --menu "นมหมีออริจินัล (ออโต้)" --qty 1 --price 50
