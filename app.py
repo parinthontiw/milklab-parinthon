@@ -1,72 +1,108 @@
-"""MilkLab RAG Chatbot (S3).
-
-Run locally: streamlit run app.py
-Deploy: push to GitHub then Actions deploys to HuggingFace Space
-
-นักศึกษาต้องเติม TODO 5 จุด ใน Session 3 Lab 2.2
-"""
-
-import os
-
 import streamlit as st
+import os
+from sentence_transformers import SentenceTransformer
+import faiss
+import numpy as np
+from google import genai
+from dotenv import load_dotenv
+
+# โหลดตัวแปรจากไฟล์ .env
+load_dotenv(override=True)
+
+# ==========================================
+# 1. ตั้งค่าหน้าเว็บ
+# ==========================================
+st.set_page_config(page_title="MilkLab AI", page_icon="🥛")
+st.title("🥛 MilkLab AI Assistant")
+
+# ==========================================
+# 2. ระบบ RAG: ฟังก์ชันโหลดข้อมูลและสร้าง Index
+# (ใช้ @st.cache_resource เพื่อให้โหลดแค่ครั้งเดียว ไม่โหลดใหม่ทุกครั้งที่พิมพ์)
+# ==========================================
 
 
 @st.cache_resource
-def load_index():
-    """TODO 1+2+3: โหลด menu_kb.md, split เป็น chunk, encode ด้วย sentence-transformers,
-    สร้าง faiss index. Cache เพราะโหลด model ครั้งแรกใช้เวลา 30 วินาที
+def load_rag_system():
+    # 2.1 โหลด menu_kb.md แล้ว split เป็น chunk (หั่นตามย่อหน้า)
+    with open("menu_kb.md", "r", encoding="utf-8") as f:
+        text = f.read()
+    chunks = [c.strip() for c in text.split('\n\n') if c.strip()]
 
-    Returns: (model, index, chunks_list)
+    # 2.2 encode chunk ด้วย sentence-transformers
+    model = SentenceTransformer(
+        'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
+    embeddings = model.encode(chunks)
+
+    # 2.3 สร้าง faiss index เพื่อเอาไว้ค้นหา
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dimension)
+    index.add(np.array(embeddings))
+
+    return chunks, model, index
+
+
+# เรียกใช้งานระบบ RAG
+chunks, embedder, index = load_rag_system()
+
+# ==========================================
+# 3. เตรียมเชื่อมต่อ AI (Gemini)
+# ==========================================
+api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+if not api_key:
+    st.error(
+        "⚠️ ไม่พบ API Key กรุณาตรวจสอบว่ามีตัวแปร GOOGLE_API_KEY ในไฟล์ .env หรือยัง")
+    st.stop()
+
+client = genai.Client(api_key=api_key)
+
+# ==========================================
+# 4. สร้าง chat UI ด้วย Streamlit
+# ==========================================
+# เช็กว่ามีประวัติแชทหรือยัง ถ้ายังให้สร้างลิสต์ว่างๆ
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# แสดงประวัติแชทบนหน้าจอ
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# ==========================================
+# 5. รับคำถามและค้นหาคำตอบ (Retrieve & Generate)
+# ==========================================
+if prompt := st.chat_input("ถามอะไรเกี่ยวกับร้าน MilkLab ได้เลยครับ..."):
+    # 5.1 แสดงคำถามของลูกค้าบนจอ
+    st.chat_message("user").markdown(prompt)
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    # 5.2 Retrieve: ค้นหา Top-K chunks ที่ตรงกับคำถามที่สุด (เอามา 3 อันดับแรก)
+    question_embedding = embedder.encode([prompt])
+    k = 3
+    distances, indices = index.search(np.array(question_embedding), k)
+
+    # เอาข้อความที่ค้นเจอมาเรียงต่อกันเพื่อเตรียมส่งให้ AI
+    retrieved_context = "\n\n".join([chunks[i]
+                                    for i in indices[0] if i < len(chunks)])
+
+    # 5.3 Generate: ใส่ context ลงใน Gemini prompt
+    system_prompt = f"""
+    คุณคือพนักงานร้าน MilkLab คอยตอบคำถามลูกค้าด้วยความสุภาพและเป็นกันเอง
+    กรุณาใช้ "ข้อมูลอ้างอิง" ด้านล่างนี้ในการตอบคำถามเท่านั้น
+    หากลูกค้าถามนอกเหนือจากข้อมูลนี้ ให้ตอบว่า "ขออภัยครับ ทางร้านยังไม่มีข้อมูลในส่วนนี้"
+    
+    ข้อมูลอ้างอิง:
+    {retrieved_context}
     """
-    raise NotImplementedError("Implement in Session 3 Lab 2.2 (TODO 1-3)")
 
-
-def retrieve_top_k(query: str, model, index, chunks: list[str], k: int = 3) -> list[str]:
-    """TODO 4: encode query, search index, return top-k chunks"""
-    raise NotImplementedError("Implement in Session 3 Lab 2.2 (TODO 4)")
-
-
-def generate_answer(query: str, context_chunks: list[str]) -> str:
-    """TODO 5: ส่ง query + context ไป Gemini, return answer
-
-    Hint: build prompt that says "ตอบจากข้อมูลต่อไปนี้เท่านั้น ถ้าไม่มีใน context ให้บอกว่าไม่รู้"
-    """
-    raise NotImplementedError("Implement in Session 3 Lab 2.2 (TODO 5)")
-
-
-def main():
-    st.set_page_config(page_title="MilkLab° RAG", page_icon="🥛")
-    st.title("MilkLab° RAG Chatbot")
-    st.caption("ถามอะไรเกี่ยวกับ MilkLab ได้ ตอบจาก menu_kb.md")
-
-    try:
-        model, index, chunks = load_index()
-    except NotImplementedError as exc:
-        st.error(f"TODO not implemented: {exc}")
-        st.stop()
-
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
-
-    if prompt := st.chat_input("ถามอะไรเกี่ยวกับ MilkLab"):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.write(prompt)
-
-        with st.chat_message("assistant"):
-            with st.spinner("กำลังค้นข้อมูล..."):
-                context = retrieve_top_k(prompt, model, index, chunks)
-                answer = generate_answer(prompt, context)
-            st.write(answer)
-            with st.expander("Source chunks"):
-                for i, c in enumerate(context, 1):
-                    st.markdown(f"**[{i}]** {c}")
-        st.session_state.messages.append({"role": "assistant", "content": answer})
-
-
-if __name__ == "__main__":
-    main()
+    with st.chat_message("assistant"):
+        try:
+            # ใช้รุ่น 2.0-flash ที่เราเทสต์กันว่าเสถียรที่สุด
+            response = client.models.generate_content(
+                model='gemini-3.5-flash',
+                contents=[system_prompt, prompt],
+            )
+            st.markdown(response.text)
+            st.session_state.messages.append(
+                {"role": "assistant", "content": response.text})
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ AI: {e}")

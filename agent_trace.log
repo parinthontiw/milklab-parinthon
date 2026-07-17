@@ -1,0 +1,24 @@
+[USER] รับนมเย็น 2 แก้ว กับ นมหมียกซด 1 แก้วครับ
+[ERROR] Parse failed: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+--------------------------------------------------
+[USER] รับนมเย็น 2 แก้ว กับ นมหมียกซด 1 แก้วครับ
+[LLM]  tool=send_alert args={message: รับนมเย็น 2 แก้ว กับ นมหมียกซด 1 แก้วครับ}
+[TOOL] send_alert OK: ส่งข้อความเข้ามือถือสำเร็จแล้ว!
+[USER] ←  ดำเนินการสำเร็จ
+--------------------------------------------------
+[USER] บันทึกขายนมเย็น 2 ขวด ขวดละ 50
+[LLM]  tool=log_sale args={menu: นมเย็น, qty: 2, price: 50}
+[TOOL] log_sale OK: row appended at 2026-07-17T04:37:45+07
+[USER] ←  บันทึกแล้วยอด 100 บาท
+--------------------------------------------------
+[USER] รับนมเย็น 2 แก้ว กับ นมหมียกซด 1 แก้วครับ
+[ERROR] price must be positive
+--------------------------------------------------
+[USER] รับนมเย็น 2 แก้ว แก้วละ 40 บาท กับ นมหมียกซด 1 แก้ว แก้วละ 50 บาทครับ
+[ERROR] 'list' object has no attribute 'get'
+--------------------------------------------------
+[USER] รับนมเย็น 2 แก้ว แก้วละ 40 บาทครับ
+[LLM]  tool=log_sale args={menu: นมเย็น, qty: 2, price: 40}
+[TOOL] log_sale OK: row appended at 2026-07-17T05:31:55+07
+[USER] ←  บันทึกแล้วยอด 80 บาท
+--------------------------------------------------
